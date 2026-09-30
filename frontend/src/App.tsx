@@ -178,6 +178,10 @@ export function App() {
             onSelectJourney={(j) => {
               setSelectedJourney(j);
             }}
+            onViewOnMap={(j) => {
+              setSelectedJourney(j);
+              setActiveTab('gis');
+            }}
           />
         )}
 

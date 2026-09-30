@@ -1,0 +1,11 @@
+names:
+  0: car
+  1: suv
+  2: motorcycle
+  3: auto_rickshaw
+  4: bus
+  5: truck
+path: C:\Users\prane\OneDrive\Desktop\VisionGuard\data
+test: raw/indian_traffic/test
+train: raw/indian_traffic/train
+val: raw/indian_traffic/val
