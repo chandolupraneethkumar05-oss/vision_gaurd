@@ -8,6 +8,7 @@ import { AnprWatchlist } from './components/AnprWatchlist';
 import { TrafficAnalytics } from './components/TrafficAnalytics';
 import { GroundedAssistant } from './components/GroundedAssistant';
 import { SystemTelemetry } from './components/SystemTelemetry';
+import { AiStudio } from './components/AiStudio';
 import type { Camera, Observation, Journey, TrafficEvent, WatchlistItem, NetworkAnalytics, SystemHealth } from './types';
 
 const API_BASE = 'http://localhost:8000';
@@ -168,6 +169,7 @@ export function App() {
         )}
 
         {activeTab === 'cameras' && <MultiCameraGrid cameras={cameras} />}
+        {activeTab === 'studio' && <AiStudio />}
 
         {activeTab === 'journeys' && (
           <JourneyVisualizer

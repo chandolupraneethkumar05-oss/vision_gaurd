@@ -1,21 +1,52 @@
 """Vehicle Detection and Classification module.
-Supports YOLO-family object detectors and lightweight OpenCV/ONNX inference.
+Supports real deep-learning inference with Ultralytics YOLOv8 / ONNX,
+with fallback OpenCV contour & aspect-ratio analysis.
 Classifies vehicles into: car, suv, motorcycle, auto_rickshaw, bus, truck.
 """
+import os
 import cv2
 import numpy as np
+from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional
-from visionguard.config import VEHICLE_CLASSES, VEHICLE_COLORS
+from visionguard.config import VEHICLE_CLASSES, VEHICLE_COLORS, BASE_DIR
+
+# Flag indicating whether ultralytics is available
+try:
+    from ultralytics import YOLO
+    _YOLO_AVAILABLE = True
+except Exception:
+    _YOLO_AVAILABLE = False
+
 
 class VehicleDetector:
     """
     Detector supporting real-time vehicle localization, classification,
     and dominant color extraction from bounding boxes.
+    Utilizes YOLOv8 nano when model weights and packages are present.
     """
 
-    def __init__(self, confidence_threshold: float = 0.45, iou_threshold: float = 0.50):
+    # COCO Class mapping to VisionGuard vehicle classes
+    COCO_VEHICLE_MAP = {
+        2: "car",          # car
+        3: "motorcycle",   # motorcycle
+        5: "bus",          # bus
+        7: "truck",        # truck
+        1: "motorcycle"    # bicycle / two-wheeler
+    }
+
+    def __init__(self, confidence_threshold: float = 0.40, iou_threshold: float = 0.50):
         self.confidence_threshold = confidence_threshold
         self.iou_threshold = iou_threshold
+        self.yolo_model = None
+
+        # Attempt to load YOLOv8 if available
+        if _YOLO_AVAILABLE:
+            weights_path = BASE_DIR / "models" / "pretrained" / "yolov8n.pt"
+            if weights_path.exists() and weights_path.stat().st_size > 1000000:
+                try:
+                    self.yolo_model = YOLO(str(weights_path))
+                except Exception:
+                    self.yolo_model = None
 
     def extract_dominant_color(self, image: np.ndarray, bbox: Tuple[int, int, int, int]) -> str:
         """Extracts dominant color of vehicle from central region of bounding box."""
@@ -64,14 +95,57 @@ class VehicleDetector:
     def detect(self, frame: np.ndarray) -> List[Dict[str, Any]]:
         """
         Performs vehicle detection on an input video frame.
-        In standalone/testing modes, runs an adaptive background and contour-based
-        or pre-trained model detector to reliably yield high-quality vehicle candidates.
+        Uses YOLOv8 if loaded; otherwise applies contour & aspect ratio vehicle parsing.
         """
         detections = []
         if frame is None or frame.size == 0:
             return detections
 
         h, w = frame.shape[:2]
+
+        # 1. Try YOLO model if available
+        if self.yolo_model is not None:
+            try:
+                results = self.yolo_model.predict(
+                    frame,
+                    conf=self.confidence_threshold,
+                    iou=self.iou_threshold,
+                    verbose=False
+                )
+                if results and len(results) > 0:
+                    boxes = results[0].boxes
+                    for box in boxes:
+                        cls_id = int(box.cls[0].item())
+                        if cls_id in self.COCO_VEHICLE_MAP:
+                            bx1, by1, bx2, by2 = map(int, box.xyxy[0].tolist())
+                            bx1, by1 = max(0, bx1), max(0, by1)
+                            bx2, by2 = min(w, bx2), min(h, by2)
+                            
+                            conf = float(box.conf[0].item())
+                            v_class = self.COCO_VEHICLE_MAP[cls_id]
+                            
+                            # Refine car to SUV or Auto Rickshaw by aspect ratio & size
+                            bw, bh = bx2 - bx1, by2 - by1
+                            aspect = bw / float(max(1, bh))
+                            if v_class == "car" and bh > 90 and aspect < 1.4:
+                                v_class = "suv"
+                            elif v_class == "motorcycle" and aspect > 0.85 and bw > 50:
+                                v_class = "auto_rickshaw"
+
+                            color = self.extract_dominant_color(frame, (bx1, by1, bx2, by2))
+                            detections.append({
+                                "bbox": [bx1, by1, bx2, by2],
+                                "class": v_class,
+                                "confidence": round(conf, 3),
+                                "color": color
+                            })
+                    
+                    if len(detections) > 0:
+                        return detections
+            except Exception:
+                pass
+
+        # 2. Adaptive contour & aspect ratio detection (Fallback & synthetic test images)
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)
         edges = cv2.Canny(blurred, 50, 150)
@@ -80,7 +154,7 @@ class VehicleDetector:
         
         for idx, cnt in enumerate(contours):
             area = cv2.contourArea(cnt)
-            if area > 1200: # Threshold for vehicle size
+            if area > 1200: # Threshold for vehicle candidate
                 x, y, bw, bh = cv2.boundingRect(cnt)
                 aspect_ratio = bw / float(bh)
                 if 0.5 < aspect_ratio < 3.5:
