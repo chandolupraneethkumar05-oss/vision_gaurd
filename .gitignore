@@ -16,8 +16,11 @@ frontend/node_modules/
 frontend/dist/
 .npm/
 
-# PDFs & Unnecessary Documents
+# PDFs & Unnecessary Media
 *.pdf
+*.mp4
+*.avi
+
 
 # Environment Variables & Secrets
 .env
