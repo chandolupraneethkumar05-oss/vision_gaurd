@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from visionguard.config import CORS_ORIGINS, BASE_DIR
 from visionguard.database.db_manager import db
 from visionguard.api.websocket_hub import ws_hub
-from visionguard.api.routes import cameras, anpr, journeys, analytics, assistant, system, studio
+from visionguard.api.routes import cameras, anpr, journeys, analytics, assistant, system, studio, police
 from visionguard.analytics.anomaly_detector import TrafficAnomalyDetector
 from visionguard.association.journey_reconstructor import JourneyReconstructor
 
@@ -174,6 +174,7 @@ app.include_router(analytics.router)
 app.include_router(assistant.router)
 app.include_router(system.router)
 app.include_router(studio.router)
+app.include_router(police.router)
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):

@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import type { NetworkAnalytics, TrafficEvent } from '../types';
 import { TrendingUp, AlertTriangle, CheckCircle, Gauge, Activity } from 'lucide-react';
+import { API_BASE } from '../config/api';
 
 interface TrafficAnalyticsProps {
   analytics: NetworkAnalytics | null;
@@ -25,7 +26,7 @@ export const TrafficAnalytics: React.FC<TrafficAnalyticsProps> = ({
   const [odMatrix, setOdMatrix] = useState<any>(null);
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/analytics/od-matrix')
+    fetch(`${API_BASE}/api/analytics/od-matrix`)
       .then((res) => res.json())
       .then((data) => setOdMatrix(data))
       .catch((err) => console.error(err));

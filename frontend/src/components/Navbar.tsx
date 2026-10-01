@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Radio, Activity, Eye, Navigation, BarChart3, Bot, Settings, AlertTriangle, Camera } from 'lucide-react';
+import { Shield, Radio, Activity, Eye, Navigation, BarChart3, Bot, Settings, AlertTriangle, Camera, ShieldAlert } from 'lucide-react';
 import type { SystemHealth } from '../types';
 
 interface NavbarProps {
@@ -12,6 +12,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, systemHealth, alertCount }) => {
   const tabs = [
     { id: 'gis', label: 'GIS Urban Map', icon: Navigation },
+    { id: 'police', label: 'Traffic Police Ops & Challan', icon: ShieldAlert },
     { id: 'cameras', label: 'Live Camera Grid', icon: Eye },
     { id: 'studio', label: 'AI Video & Webcam Studio', icon: Camera },
     { id: 'journeys', label: 'Journey Reconstructor', icon: Radio },

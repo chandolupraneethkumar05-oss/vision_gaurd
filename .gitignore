@@ -20,6 +20,12 @@ frontend/dist/
 *.pdf
 *.mp4
 *.avi
+*.mov
+*.mkv
+*.webm
+data/uploads/*
+!data/uploads/.gitkeep
+
 
 
 # Environment Variables & Secrets

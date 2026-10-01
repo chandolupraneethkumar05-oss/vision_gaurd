@@ -59,7 +59,9 @@ class DatabaseManager:
                         edge["min_time_sec"], edge["max_time_sec"], 50.0
                     ))
 
-                # Seed realistic security watchlist
+            # Seed realistic security watchlist if empty
+            cursor.execute("SELECT COUNT(*) as cnt FROM watchlist")
+            if cursor.fetchone()["cnt"] == 0:
                 watchlist_items = [
                     ("DL 01 AB 1234", "White Toyota Fortuner SUV", "Wanted in Highway Armed Robbery Case #2026/89", "CRITICAL"),
                     ("MH 12 CD 5678", "Black Mahindra Scorpio", "Hit-and-Run Suspect at Barakhamba Junction", "HIGH"),
@@ -72,7 +74,51 @@ class DatabaseManager:
                         VALUES (?, ?, ?, ?)
                     """, (plate, desc, reason, priority))
 
-                conn.commit()
+            # Seed sample E-Challans under Indian Motor Vehicles Act 2019 if empty
+            cursor.execute("SELECT COUNT(*) as cnt FROM echallans")
+            if cursor.fetchone()["cnt"] == 0:
+                challans = [
+                    ("DL-ECH-2026-08192", "HR 26 DQ 7712", "OVERSPEEDING", "Sec 183(1) Motor Vehicles Act", 2000, "CAM-01", "Outer Circle Radial", 78.4, 50.0, "PENDING_PAYMENT", "Speed measured via calibrated ANPR tracker; exceeded limit by 28.4 km/h"),
+                    ("DL-ECH-2026-08193", "DL 08 SC 1120", "NO_HELMET", "Sec 194D Motor Vehicles Act", 1000, "CAM-03", "Janpath Crossing", 38.0, 50.0, "PENDING_PAYMENT", "Rider and pillion observed without BIS standard protective headgear"),
+                    ("DL-ECH-2026-08194", "UP 16 XY 9999", "RED_LIGHT_JUMP", "Sec 184 Motor Vehicles Act", 5000, "CAM-02", "Barakhamba Road", 42.1, 50.0, "PAID", "Violated red signal phase; crossed stop line during pedestrian clearance"),
+                    ("DL-ECH-2026-08195", "DL 01 AB 1234", "DANGEROUS_DRIVING", "Sec 184 Motor Vehicles Act", 5000, "CAM-06", "C-Hexagon Roundabout", 82.0, 50.0, "PENDING_PAYMENT", "Reckless zigzag maneuvering at roundabout approach lane")
+                ]
+                for c_no, pl, v_type, sec, fine, cam, inter, spd, lim, st, notes in challans:
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO echallans 
+                        (challan_no, plate_number, violation_type, section_act, fine_amount, camera_id, intersection, recorded_speed, speed_limit, status, evidence_notes)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (c_no, pl, v_type, sec, fine, cam, inter, spd, lim, st, notes))
+
+            # Seed PCR Patrol Units if empty
+            cursor.execute("SELECT COUNT(*) as cnt FROM pcr_units")
+            if cursor.fetchone()["cnt"] == 0:
+                pcr_data = [
+                    ("PCR-Alpha-01", "EAGLE-ONE", "Inspector R. K. Sharma", "CAM-01", 28.6328, 77.2197, "ON_PATROL"),
+                    ("PCR-Bravo-02", "COBRA-TWO", "Sub-Inspector Vikram Singh", "CAM-02", 28.6294, 77.2274, "STANDBY"),
+                    ("PCR-Charlie-03", "FALCON-THREE", "ASI Manjeet Dahiya", "CAM-04", 28.6253, 77.2215, "INTERCEPT_READY"),
+                    ("PCR-Delta-04", "CHEETAH-FOUR", "Head Constable Amit Rawat", "CAM-06", 28.6129, 77.2295, "ON_PATROL")
+                ]
+                for uid, cs, off, junc, lat, lon, st in pcr_data:
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO pcr_units (unit_id, call_sign, officer_in_charge, current_junction, latitude, longitude, status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, (uid, cs, off, junc, lat, lon, st))
+
+            # Seed sample Green Corridor if empty
+            cursor.execute("SELECT COUNT(*) as cnt FROM green_corridors")
+            if cursor.fetchone()["cnt"] == 0:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO green_corridors 
+                    (corridor_id, name, emergency_type, vehicle_plate, origin_cam, dest_cam, route_json, status, priority_level)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    "GC-2026-004", "Connaught Place -> AIIMS Trauma Centre Corridor", "AMBULANCE", "DL 01 AM 9110",
+                    "CAM-01", "CAM-06", '["CAM-01", "CAM-02", "CAM-04", "CAM-06"]', "ACTIVE", "CRITICAL_LEVEL_1"
+                ))
+
+            conn.commit()
+
 
     # --- Cameras ---
     def get_all_cameras(self) -> List[Dict[str, Any]]:
@@ -258,4 +304,86 @@ class DatabaseManager:
             cursor.execute("SELECT * FROM audit_logs ORDER BY id DESC LIMIT ?", (limit,))
             return [dict(row) for row in cursor.fetchall()]
 
+    # --- Traffic Police Operations & E-Challans ---
+    def get_echallans(self, limit: int = 50) -> List[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM echallans ORDER BY timestamp DESC LIMIT ?", (limit,))
+            return [dict(row) for row in cursor.fetchall()]
+
+    def insert_echallan(self, challan: Dict[str, Any]):
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO echallans 
+                (challan_no, plate_number, violation_type, section_act, fine_amount, camera_id, intersection, recorded_speed, speed_limit, status, officer_badge, evidence_notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                challan["challan_no"], challan["plate_number"], challan["violation_type"],
+                challan["section_act"], challan["fine_amount"], challan["camera_id"],
+                challan["intersection"], challan.get("recorded_speed", 0.0), challan.get("speed_limit", 50.0),
+                challan.get("status", "PENDING_PAYMENT"), challan.get("officer_badge", "DEL-TP-7429"),
+                challan.get("evidence_notes", "")
+            ))
+            conn.commit()
+
+    def update_challan_status(self, challan_no: str, status: str):
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE echallans SET status = ? WHERE challan_no = ?", (status, challan_no))
+            conn.commit()
+
+    # --- Emergency Green Corridors ---
+    def get_green_corridors(self) -> List[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM green_corridors ORDER BY activated_at DESC")
+            results = []
+            for row in cursor.fetchall():
+                r = dict(row)
+                r["route"] = json.loads(r["route_json"]) if r.get("route_json") else []
+                results.append(r)
+            return results
+
+    def activate_green_corridor(self, corridor: Dict[str, Any]):
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO green_corridors
+                (corridor_id, name, emergency_type, vehicle_plate, origin_cam, dest_cam, route_json, status, priority_level)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                corridor["corridor_id"], corridor["name"], corridor["emergency_type"],
+                corridor.get("vehicle_plate", "EMERGENCY-01"), corridor["origin_cam"], corridor["dest_cam"],
+                json.dumps(corridor["route"]), corridor.get("status", "ACTIVE"), corridor.get("priority_level", "CRITICAL_LEVEL_1")
+            ))
+            conn.commit()
+
+    def deactivate_green_corridor(self, corridor_id: str):
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE green_corridors SET status = 'COMPLETED' WHERE corridor_id = ?", (corridor_id,))
+            conn.commit()
+
+    # --- PCR Patrol Units ---
+    def get_pcr_units(self) -> List[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM pcr_units ORDER BY unit_id")
+            return [dict(row) for row in cursor.fetchall()]
+
+    def update_pcr_unit(self, unit_id: str, status: str, current_junction: Optional[str] = None):
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            if current_junction:
+                cursor.execute("""
+                    UPDATE pcr_units SET status = ?, current_junction = ?, last_update = CURRENT_TIMESTAMP WHERE unit_id = ?
+                """, (status, current_junction, unit_id))
+            else:
+                cursor.execute("""
+                    UPDATE pcr_units SET status = ?, last_update = CURRENT_TIMESTAMP WHERE unit_id = ?
+                """, (status, unit_id))
+            conn.commit()
+
 db = DatabaseManager()
+

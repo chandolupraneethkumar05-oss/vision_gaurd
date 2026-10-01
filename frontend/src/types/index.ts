@@ -127,3 +127,44 @@ export interface SystemHealth {
   memory_usage_mb: number;
   cpu_utilization_pct: number;
 }
+
+export interface EChallan {
+  challan_no: string;
+  plate_number: string;
+  violation_type: string;
+  section_act: string;
+  fine_amount: number;
+  camera_id: string;
+  intersection: string;
+  recorded_speed: number;
+  speed_limit: number;
+  timestamp: string;
+  status: 'PENDING_PAYMENT' | 'PAID' | 'DISPUTED';
+  officer_badge: string;
+  evidence_notes: string;
+}
+
+export interface GreenCorridor {
+  corridor_id: string;
+  name: string;
+  emergency_type: string;
+  vehicle_plate: string;
+  origin_cam: string;
+  dest_cam: string;
+  route: string[];
+  status: string;
+  activated_at: string;
+  priority_level: string;
+}
+
+export interface PcrUnit {
+  unit_id: string;
+  call_sign: string;
+  officer_in_charge: string;
+  current_junction: string;
+  latitude: number;
+  longitude: number;
+  status: string;
+  last_update: string;
+}
+

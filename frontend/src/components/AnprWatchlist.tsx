@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { Observation, WatchlistItem } from '../types';
 import { Shield, ShieldAlert, Plus, CheckCircle, AlertOctagon, Trash2 } from 'lucide-react';
+import { API_BASE } from '../config/api';
 
 interface AnprWatchlistProps {
   observations: Observation[];
@@ -28,7 +29,7 @@ export const AnprWatchlist: React.FC<AnprWatchlistProps> = ({
 
   const handleValidate = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/anpr/validate', {
+      const res = await fetch(`${API_BASE}/api/anpr/validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ raw_text: testPlate }),

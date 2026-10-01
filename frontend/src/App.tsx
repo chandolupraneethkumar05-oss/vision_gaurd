@@ -9,9 +9,9 @@ import { TrafficAnalytics } from './components/TrafficAnalytics';
 import { GroundedAssistant } from './components/GroundedAssistant';
 import { SystemTelemetry } from './components/SystemTelemetry';
 import { AiStudio } from './components/AiStudio';
+import { TrafficPoliceOps } from './components/TrafficPoliceOps';
+import { API_BASE } from './config/api';
 import type { Camera, Observation, Journey, TrafficEvent, WatchlistItem, NetworkAnalytics, SystemHealth } from './types';
-
-const API_BASE = 'http://localhost:8000';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<string>('gis');
@@ -201,6 +201,8 @@ export function App() {
             onResolveEvent={handleResolveEvent}
           />
         )}
+
+        {activeTab === 'police' && <TrafficPoliceOps cameras={cameras} />}
 
         {activeTab === 'assistant' && <GroundedAssistant />}
 

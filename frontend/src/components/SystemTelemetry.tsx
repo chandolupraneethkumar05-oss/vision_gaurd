@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { SystemHealth } from '../types';
 import { Cpu, HardDrive, Clock, Shield, Activity, Layers, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { API_BASE } from '../config/api';
 
 interface SystemTelemetryProps {
   health: SystemHealth | null;
@@ -44,12 +45,12 @@ export const SystemTelemetry: React.FC<SystemTelemetryProps> = ({ health }) => {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/system/benchmarks')
+    fetch(`${API_BASE}/api/system/benchmarks`)
       .then((res) => res.json())
       .then((data) => setBenchmarks(data.datasets || []))
       .catch((err) => console.error(err));
 
-    fetch('http://localhost:8000/api/system/audit-logs')
+    fetch(`${API_BASE}/api/system/audit-logs`)
       .then((res) => res.json())
       .then((data) => setAuditLogs(data || []))
       .catch((err) => console.error(err));

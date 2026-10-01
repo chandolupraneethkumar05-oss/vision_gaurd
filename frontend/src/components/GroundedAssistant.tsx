@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Bot, Send, ShieldCheck, Database, Sparkles, CheckCircle2 } from 'lucide-react';
 import type { GroundedAssistantResponse } from '../types';
+import { API_BASE } from '../config/api';
 
 interface Message {
   id: string;
@@ -17,9 +18,9 @@ export const GroundedAssistant: React.FC = () => {
     {
       id: 'm-0',
       sender: 'assistant',
-      text: 'Greetings Operator. I am the VisionGuard Grounded AI Assistant. You can ask queries regarding license plates, camera congestion, speeding incidents, or watchlist alerts. All answers are strictly grounded in deterministic database facts with full audit citations.',
+      text: 'Greetings Operator & Traffic Controller. I am the VisionGuard Grounded AI Assistant. You can ask queries regarding license plates, camera congestion, speeding incidents, E-Challans, emergency green corridors, or watchlist alerts. All answers are strictly grounded in deterministic database facts with full legal citations.',
       grounded: true,
-      citations: ['SYSTEM_CORE: Database Grounding Active', 'POLICY: Zero Hallucination Mode'],
+      citations: ['SYSTEM_CORE: Database Grounding Active', 'POLICY: Zero Hallucination Mode', 'LEGAL: Motor Vehicles Act 2019 Rules'],
       timestamp: new Date().toLocaleTimeString(),
     },
   ]);
@@ -28,9 +29,10 @@ export const GroundedAssistant: React.FC = () => {
 
   const sampleQueries = [
     'Where was plate DL 01 AB 1234 last seen?',
+    'Show active E-Challans and penalties',
+    'Clear emergency green corridor for ambulance',
     'Which camera has highest congestion?',
     'Show me all speeding incidents today',
-    'How many active watchlist vehicles are there?',
     'What is the status of Camera 1?',
   ];
 
@@ -50,10 +52,10 @@ export const GroundedAssistant: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const res = await fetch('http://localhost:8000/api/assistant/query', {
+      const res = await fetch(`${API_BASE}/api/assistant/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: q, user_role: 'operator' }),
+        body: JSON.stringify({ query: q, user_role: 'traffic_controller_police' }),
       });
       const data: GroundedAssistantResponse = await res.json();
 

@@ -61,7 +61,8 @@ CAMERA_TRAFFIC_POOLS = {
 class SyntheticRoadGenerator:
     """
     Generates high-definition realistic synthetic urban road video frames
-    with animated vehicles, road perspective, lane markings, and live tactical AI detection HUD.
+    with authentic vehicle silhouettes, drop-shadows, headlights, wheels,
+    asphalt texture, curbs, and live tactical AI detection HUD.
     """
 
     def __init__(self, camera_id: str, camera_name: str, width: int = 640, height: int = 360):
@@ -75,73 +76,206 @@ class SyntheticRoadGenerator:
         base_pool = CAMERA_TRAFFIC_POOLS.get(camera_id, CAMERA_TRAFFIC_POOLS["CAM-01"])
         self.vehicles = [dict(v) for v in base_pool]
 
-    def render_frame(self) -> Tuple[np.ndarray, Dict[str, Any]]:
-        """Renders one synthetic frame with road scenery, moving vehicles, and tactical AI HUD."""
-        self.frame_count += 1
-        w, h = self.width, self.height
+    def _draw_road_environment(self, frame: np.ndarray, w: int, h: int):
+        """Renders realistic textured asphalt, Indian municipal painted curbs, and lane markings."""
+        # Asphalt base color
+        frame[:, :] = (38, 40, 42)
 
-        # Base asphalt road color (classic dark charcoal)
-        frame = np.full((h, w, 3), (40, 42, 45), dtype=np.uint8)
+        # Sidewalk pavements
+        cv2.rectangle(frame, (0, 0), (52, h), (72, 75, 78), -1)
+        cv2.rectangle(frame, (w - 52, 0), (w, h), (72, 75, 78), -1)
 
-        # Sidewalk / road curbs
-        cv2.rectangle(frame, (0, 0), (50, h), (75, 80, 85), -1)
-        cv2.rectangle(frame, (w - 50, 0), (w, h), (75, 80, 85), -1)
-        # Curb edge borders
-        cv2.line(frame, (50, 0), (50, h), (160, 160, 160), 2)
-        cv2.line(frame, (w - 50, 0), (w - 50, h), (160, 160, 160), 2)
+        # Alternating black & yellow safety curbs (Indian Smart City standard)
+        curb_h = 24
+        for y in range(0, h, curb_h):
+            is_yellow = (y // curb_h) % 2 == 0
+            curb_color = (0, 200, 240) if is_yellow else (25, 25, 25)
+            # Left curb
+            cv2.rectangle(frame, (48, y), (54, min(h, y + curb_h)), curb_color, -1)
+            # Right curb
+            cv2.rectangle(frame, (w - 54, y), (w - 48, min(h, y + curb_h)), curb_color, -1)
 
-        # Lane dividers (Classic highway dashed lines)
+        # Solid white boundary edge lines
+        cv2.line(frame, (56, 0), (56, h), (220, 225, 230), 2)
+        cv2.line(frame, (w - 56, 0), (w - 56, h), (220, 225, 230), 2)
+
+        # Dashed lane dividers with realistic perspective motion
         dash_offset = (self.frame_count * 5) % 40
-        lane_xs = [180, 310, 440]
+        lane_xs = [190, 320, 450]
         for lx in lane_xs:
             for y in range(-40 + dash_offset, h, 40):
-                cv2.line(frame, (lx, y), (lx, min(h, y + 22)), (210, 225, 235), 2)
+                cv2.line(frame, (lx, y), (lx, min(h, y + 22)), (230, 235, 240), 2)
+
+        # Subtle road tire wear tracks along the 3 active driving lanes
+        tire_lanes = [140, 255, 385, 510]
+        for tx in tire_lanes:
+            overlay = frame.copy()
+            cv2.line(overlay, (tx, 0), (tx, h), (28, 30, 32), 16)
+            cv2.addWeighted(overlay, 0.45, frame, 0.55, 0, frame)
+
+    def _draw_realistic_vehicle(self, frame: np.ndarray, v: Dict[str, Any], vx: int, vy: int, w: int, h: int) -> Tuple[int, int, int, int]:
+        """Draws realistic vehicle silhouette with drop shadow, wheels, headlights, and class-specific details."""
+        v_class = v["class"]
+        bgr = v["bgr"]
+
+        # Dimensions based on vehicle category
+        if v_class == "bus":
+            bw, bh = 60, 112
+        elif v_class == "truck":
+            bw, bh = 58, 102
+        elif v_class == "auto_rickshaw":
+            bw, bh = 38, 48
+        elif v_class == "motorcycle":
+            bw, bh = 22, 42
+        elif v_class == "suv":
+            bw, bh = 52, 74
+        else:  # car / sedan
+            bw, bh = 48, 66
+
+        x1 = max(10, vx - bw // 2)
+        y1 = max(10, vy - bh // 2)
+        x2 = min(w - 10, x1 + bw)
+        y2 = min(h - 10, y1 + bh)
+
+        # 1. Soft Ambient Drop Shadow Underneath Vehicle (Alpha Blended)
+        shadow_overlay = frame.copy()
+        cv2.ellipse(shadow_overlay, (vx, vy + 4), (int(bw * 0.65), int(bh * 0.60)), 0, 0, 360, (12, 14, 16), -1)
+        cv2.addWeighted(shadow_overlay, 0.55, frame, 0.45, 0, frame)
+
+        # 2. Wheels / Tyres on the sides
+        if v_class in ["car", "suv", "truck", "bus"]:
+            wheel_w, wheel_h = 5, 12
+            # Front wheels
+            cv2.rectangle(frame, (x1 - 3, y1 + 10), (x1, y1 + 10 + wheel_h), (18, 18, 18), -1)
+            cv2.rectangle(frame, (x2, y1 + 10), (x2 + 3, y1 + 10 + wheel_h), (18, 18, 18), -1)
+            # Rear wheels
+            cv2.rectangle(frame, (x1 - 3, y2 - 18), (x1, y2 - 18 + wheel_h), (18, 18, 18), -1)
+            cv2.rectangle(frame, (x2, y2 - 18), (x2 + 3, y2 - 18 + wheel_h), (18, 18, 18), -1)
+            # Silver hubcaps
+            cv2.line(frame, (x1 - 2, y1 + 16), (x1 - 1, y1 + 16), (160, 160, 160), 1)
+            cv2.line(frame, (x2 + 1, y1 + 16), (x2 + 2, y1 + 16), (160, 160, 160), 1)
+            cv2.line(frame, (x1 - 2, y2 - 12), (x1 - 1, y2 - 12), (160, 160, 160), 1)
+            cv2.line(frame, (x2 + 1, y2 - 12), (x2 + 2, y2 - 12), (160, 160, 160), 1)
+        elif v_class == "auto_rickshaw":
+            # 3 wheels: 1 front, 2 rear
+            cv2.rectangle(frame, (vx - 2, y1 - 2), (vx + 2, y1 + 6), (18, 18, 18), -1)
+            cv2.rectangle(frame, (x1 - 2, y2 - 12), (x1 + 1, y2), (18, 18, 18), -1)
+            cv2.rectangle(frame, (x2 - 1, y2 - 12), (x2 + 2, y2), (18, 18, 18), -1)
+
+        # 3. Headlight Light Cones projecting onto the road
+        if y1 > 20:
+            beam_overlay = frame.copy()
+            left_pts = np.array([[x1 + 6, y1], [x1 - 8, max(0, y1 - 35)], [x1 + 14, max(0, y1 - 35)]], np.int32)
+            right_pts = np.array([[x2 - 6, y1], [x2 - 14, max(0, y1 - 35)], [x2 + 8, max(0, y1 - 35)]], np.int32)
+            cv2.fillPoly(beam_overlay, [left_pts], (180, 240, 255))
+            cv2.fillPoly(beam_overlay, [right_pts], (180, 240, 255))
+            cv2.addWeighted(beam_overlay, 0.20, frame, 0.80, 0, frame)
+
+        # 4. Main Body & Specific Silhouettes
+        if v_class == "auto_rickshaw":
+            # Distinctive Delhi Bajaj 3-wheeler: Yellow canopy roof, CNG green lower skirts
+            cv2.rectangle(frame, (x1 + 2, y1 + 8), (x2 - 2, y2 - 2), (35, 125, 45), -1) # Green lower body
+            cv2.rectangle(frame, (x1 + 1, y1 + 10), (x2 - 1, y2 - 10), (10, 210, 245), -1) # Bright yellow canopy
+            cv2.circle(frame, (vx, y1 + 8), int(bw * 0.45), (10, 210, 245), -1) # Front rounded cowl
+            # Black handlebar console
+            cv2.line(frame, (vx - 6, y1 + 12), (vx + 6, y1 + 12), (20, 20, 20), 2)
+            # Black rear passenger vinyl seat
+            cv2.rectangle(frame, (x1 + 5, y2 - 12), (x2 - 5, y2 - 4), (25, 25, 25), -1)
+
+        elif v_class == "bus":
+            # Delhi Transport Corporation (DTC) low-floor electric city bus
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (35, 130, 45), -1) # Green body
+            # White roof panel
+            cv2.rectangle(frame, (x1 + 4, y1 + 18), (x2 - 4, y2 - 12), (235, 240, 235), -1)
+            # Panoramic front windshield
+            cv2.rectangle(frame, (x1 + 3, y1 + 2), (x2 - 3, y1 + 16), (55, 65, 75), -1)
+            # Amber LED Destination Display Board
+            cv2.rectangle(frame, (x1 + 8, y1 + 2), (x2 - 8, y1 + 7), (0, 180, 255), -1)
+            # Roof AC units
+            cv2.rectangle(frame, (vx - 10, y1 + 28), (vx + 10, y1 + 46), (180, 185, 190), -1)
+            cv2.rectangle(frame, (vx - 10, y1 + 60), (vx + 10, y1 + 78), (180, 185, 190), -1)
+
+        elif v_class == "truck":
+            # Heavy Commercial Rigid Truck
+            cv2.rectangle(frame, (x1, y1), (x2, y1 + 30), (30, 45, 65), -1) # Front cab
+            cv2.rectangle(frame, (x1 - 1, y1 + 32), (x2 + 1, y2), bgr, -1) # Cargo container/bed
+            # Container ribs
+            for cy in range(y1 + 40, y2 - 8, 12):
+                cv2.line(frame, (x1 + 2, cy), (x2 - 2, cy), (20, 20, 20), 1)
+            # Windshield
+            cv2.rectangle(frame, (x1 + 4, y1 + 6), (x2 - 4, y1 + 22), (60, 70, 80), -1)
+
+        elif v_class == "motorcycle":
+            # Two-wheeler motorcycle with helmeted rider
+            cv2.rectangle(frame, (vx - 4, y1 + 4), (vx + 4, y2 - 4), (30, 30, 30), -1) # Chassis
+            cv2.circle(frame, (vx, y1 + 10), 5, bgr, -1) # Fuel tank
+            cv2.circle(frame, (vx, y1 + 20), 6, (0, 215, 255), -1) # Helmeted rider (yellow safety helmet)
+            cv2.line(frame, (vx - 8, y1 + 8), (vx + 8, y1 + 8), (20, 20, 20), 2) # Handlebars
+
+        else: # Car or SUV
+            # Aerodynamic body shape with specular highlights
+            cv2.rectangle(frame, (x1, y1), (x2, y2), bgr, -1)
+            # Body outline
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (20, 22, 24), 1)
+
+            # Curved front windshield
+            cv2.rectangle(frame, (x1 + 4, y1 + int(bh * 0.18)), (x2 - 4, y1 + int(bh * 0.38)), (50, 60, 72), -1)
+            # Glass reflection streak
+            cv2.line(frame, (x1 + 8, y1 + int(bh * 0.20)), (x2 - 12, y1 + int(bh * 0.36)), (140, 160, 180), 1)
+
+            # Roof Panel with highlight
+            cv2.rectangle(frame, (x1 + 4, y1 + int(bh * 0.38)), (x2 - 4, y1 + int(bh * 0.70)), bgr, -1)
+            cv2.line(frame, (vx - 1, y1 + int(bh * 0.38)), (vx - 1, y1 + int(bh * 0.70)), (240, 240, 240), 1)
+
+            # Rear window
+            cv2.rectangle(frame, (x1 + 5, y1 + int(bh * 0.70)), (x2 - 5, y1 + int(bh * 0.85)), (40, 48, 56), -1)
+
+            # Side mirrors
+            cv2.rectangle(frame, (x1 - 4, y1 + int(bh * 0.26)), (x1, y1 + int(bh * 0.32)), bgr, -1)
+            cv2.rectangle(frame, (x2, y1 + int(bh * 0.26)), (x2 + 4, y1 + int(bh * 0.32)), bgr, -1)
+
+            # SUV Roof rack rails
+            if v_class == "suv":
+                cv2.line(frame, (x1 + 6, y1 + int(bh * 0.36)), (x1 + 6, y1 + int(bh * 0.72)), (30, 30, 30), 2)
+                cv2.line(frame, (x2 - 6, y1 + int(bh * 0.36)), (x2 - 6, y1 + int(bh * 0.72)), (30, 30, 30), 2)
+
+        # 5. Front Headlights & Rear Taillights
+        cv2.circle(frame, (x1 + 6, y1 + 3), 3, (200, 245, 255), -1) # Left Headlight
+        cv2.circle(frame, (x2 - 6, y1 + 3), 3, (200, 245, 255), -1) # Right Headlight
+        cv2.rectangle(frame, (x1 + 5, y2 - 4), (x1 + 12, y2), (20, 20, 220), -1) # Left Taillight
+        cv2.rectangle(frame, (x2 - 12, y2 - 4), (x2 - 5, y2), (20, 20, 220), -1) # Right Taillight
+
+        # 6. High-Security Registration Plate (HSRP) with blue IND strip
+        plate_w = min(36, bw - 14)
+        plate_x1 = vx - plate_w // 2
+        plate_x2 = plate_x1 + plate_w
+        plate_y1 = y2 - 7
+        plate_y2 = y2 - 1
+        cv2.rectangle(frame, (plate_x1, plate_y1), (plate_x2, plate_y2), (245, 245, 245), -1)
+        cv2.rectangle(frame, (plate_x1, plate_y1), (plate_x1 + 4, plate_y2), (180, 60, 20), -1) # Blue IND strip
+
+        return x1, y1, x2, y2
+
+    def render_frame(self) -> Tuple[np.ndarray, Dict[str, Any]]:
+        """Renders one high-definition synthetic frame with realistic visuals and tactical AI HUD."""
+        self.frame_count += 1
+        w, h = self.width, self.height
+        frame = np.empty((h, w, 3), dtype=np.uint8)
+
+        # Render realistic road environment
+        self._draw_road_environment(frame, w, h)
 
         # Render and advance vehicles
         active_metadata = []
         for v in self.vehicles:
             v["y"] += v["speed"]
-            if v["y"] > h + 60:
-                v["y"] = -70
-                v["x"] = random.choice([120, 220, 340, 440])
+            if v["y"] > h + 70:
+                v["y"] = -80
+                v["x"] = random.choice([130, 230, 350, 470])
 
             vx, vy = int(v["x"]), int(v["y"])
-            if -60 <= vy <= h + 60:
-                # Vehicle dimensions based on class
-                if v["class"] == "bus":
-                    bw, bh = 56, 96
-                elif v["class"] == "truck":
-                    bw, bh = 54, 90
-                elif v["class"] == "auto_rickshaw":
-                    bw, bh = 36, 46
-                elif v["class"] == "motorcycle":
-                    bw, bh = 22, 38
-                elif v["class"] == "suv":
-                    bw, bh = 50, 68
-                else:  # car
-                    bw, bh = 46, 62
-
-                x1, y1 = max(10, vx - bw // 2), max(10, vy - bh // 2)
-                x2, y2 = min(w - 10, x1 + bw), min(h - 10, y1 + bh)
-
-                # Draw vehicle body
-                cv2.rectangle(frame, (x1, y1), (x2, y2), v["bgr"], -1)
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (20, 20, 20), 1)
-
-                # Windshield / roof detail
-                win_y1 = y1 + int(bh * 0.18)
-                win_y2 = y1 + int(bh * 0.42)
-                cv2.rectangle(frame, (x1 + 4, win_y1), (x2 - 4, win_y2), (65, 75, 85), -1)
-
-                # Headlights
-                cv2.circle(frame, (x1 + 6, y1 + 3), 3, (180, 240, 255), -1)
-                cv2.circle(frame, (x2 - 6, y1 + 3), 3, (180, 240, 255), -1)
-
-                # License plate representation on vehicle
-                plate_y = y2 - 8
-                plate_x1 = (x1 + x2) // 2 - 16
-                plate_x2 = (x1 + x2) // 2 + 16
-                cv2.rectangle(frame, (plate_x1, plate_y), (plate_x2, plate_y + 6), (250, 250, 250), -1)
+            if -70 <= vy <= h + 70:
+                x1, y1, x2, y2 = self._draw_realistic_vehicle(frame, v, vx, vy, w, h)
 
                 # Speed estimation
                 speed_kmh = round(34.0 + (v["speed"] * 8.5), 1)
@@ -149,26 +283,27 @@ class SyntheticRoadGenerator:
                 # --- LIVE TACTICAL COMPUTER VISION OVERLAY ---
                 color = OVERLAY_COLORS.get(v["class"], (46, 139, 87))
 
-                # Corner brackets
-                c_len = min(12, bw // 3)
+                # Sleek tactical corner brackets
+                c_len = min(12, (x2 - x1) // 3)
+                thick = 2
                 # Top-left
-                cv2.line(frame, (x1 - 3, y1 - 3), (x1 - 3 + c_len, y1 - 3), color, 2)
-                cv2.line(frame, (x1 - 3, y1 - 3), (x1 - 3, y1 - 3 + c_len), color, 2)
+                cv2.line(frame, (x1 - 3, y1 - 3), (x1 - 3 + c_len, y1 - 3), color, thick)
+                cv2.line(frame, (x1 - 3, y1 - 3), (x1 - 3, y1 - 3 + c_len), color, thick)
                 # Top-right
-                cv2.line(frame, (x2 + 3, y1 - 3), (x2 + 3 - c_len, y1 - 3), color, 2)
-                cv2.line(frame, (x2 + 3, y1 - 3), (x2 + 3, y1 - 3 + c_len), color, 2)
+                cv2.line(frame, (x2 + 3, y1 - 3), (x2 + 3 - c_len, y1 - 3), color, thick)
+                cv2.line(frame, (x2 + 3, y1 - 3), (x2 + 3, y1 - 3 + c_len), color, thick)
                 # Bottom-left
-                cv2.line(frame, (x1 - 3, y2 + 3), (x1 - 3 + c_len, y2 + 3), color, 2)
-                cv2.line(frame, (x1 - 3, y2 + 3), (x1 - 3, y2 + 3 - c_len), color, 2)
+                cv2.line(frame, (x1 - 3, y2 + 3), (x1 - 3 + c_len, y2 + 3), color, thick)
+                cv2.line(frame, (x1 - 3, y2 + 3), (x1 - 3, y2 + 3 - c_len), color, thick)
                 # Bottom-right
-                cv2.line(frame, (x2 + 3, y2 + 3), (x2 + 3 - c_len, y2 + 3), color, 2)
-                cv2.line(frame, (x2 + 3, y2 + 3), (x2 + 3, y2 + 3 - c_len), color, 2)
+                cv2.line(frame, (x2 + 3, y2 + 3), (x2 + 3 - c_len, y2 + 3), color, thick)
+                cv2.line(frame, (x2 + 3, y2 + 3), (x2 + 3, y2 + 3 - c_len), color, thick)
 
                 # Class & Confidence pill label
                 conf_pct = int(v["plate_conf"] * 100)
                 cls_label = f"{v['class'].upper()} {conf_pct}%"
                 (lw, lh), _ = cv2.getTextSize(cls_label, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1)
-                
+
                 label_y1 = max(30, y1 - lh - 6)
                 cv2.rectangle(frame, (x1 - 3, label_y1), (x1 + lw + 6, label_y1 + lh + 5), color, -1)
                 cv2.putText(frame, cls_label, (x1, label_y1 + lh + 1),
@@ -192,21 +327,23 @@ class SyntheticRoadGenerator:
                     "estimated_speed": speed_kmh
                 })
 
-        # --- Top HUD Overlay Bar ---
+        # --- Professional CCTV On-Screen Display (OSD) Bar ---
         now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-        cv2.rectangle(frame, (0, 0), (w, 26), (15, 20, 25), -1)
-        cv2.line(frame, (0, 26), (w, 26), (50, 60, 70), 1)
+        cv2.rectangle(frame, (0, 0), (w, 26), (12, 15, 18), -1)
+        cv2.line(frame, (0, 26), (w, 26), (45, 55, 65), 1)
 
-        # Camera info & Live badge
-        cv2.putText(frame, f"{self.camera_id}: {self.camera_name}", (10, 17),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.42, (230, 240, 235), 1, cv2.LINE_AA)
-        
+        # Camera identification and live OSD text
+        osd_title = f"{self.camera_id}: {self.camera_name.upper()}"
+        cv2.putText(frame, osd_title, (10, 17),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.42, (235, 245, 240), 1, cv2.LINE_AA)
+
         right_text = f"AI-DETECT: {len(active_metadata)} | {now_str}"
         (rw, _), _ = cv2.getTextSize(right_text, cv2.FONT_HERSHEY_SIMPLEX, 0.38, 1)
         cv2.putText(frame, right_text, (w - rw - 10, 17),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.38, (0, 255, 180), 1, cv2.LINE_AA)
 
         return frame, {"frame_id": self.frame_count, "vehicles": active_metadata}
+
 
 
 class StreamManager:

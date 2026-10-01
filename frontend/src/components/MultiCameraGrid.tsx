@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { Camera } from '../types';
 import { Maximize2, Minimize2, Activity, ShieldCheck, Gauge } from 'lucide-react';
+import { API_BASE } from '../config/api';
 
 interface MultiCameraGridProps {
   cameras: Camera[];
@@ -44,7 +45,7 @@ export const MultiCameraGrid: React.FC<MultiCameraGridProps> = ({ cameras }) => 
         }`}
       >
         {displayedCameras.map((cam) => {
-          const streamUrl = `http://localhost:8000/api/cameras/${cam.camera_id}/stream`;
+          const streamUrl = `${API_BASE}/api/cameras/${cam.camera_id}/stream`;
           const metrics = cam.metrics;
 
           return (

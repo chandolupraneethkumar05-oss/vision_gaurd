@@ -116,9 +116,55 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     details TEXT
 );
 
+-- Traffic Police Official E-Challans Table (Motor Vehicles Act 2019)
+CREATE TABLE IF NOT EXISTS echallans (
+    challan_no TEXT PRIMARY KEY,
+    plate_number TEXT NOT NULL,
+    violation_type TEXT NOT NULL,
+    section_act TEXT NOT NULL,
+    fine_amount INTEGER NOT NULL,
+    camera_id TEXT NOT NULL,
+    intersection TEXT NOT NULL,
+    recorded_speed REAL DEFAULT 0.0,
+    speed_limit REAL DEFAULT 50.0,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status TEXT DEFAULT 'PENDING_PAYMENT',
+    officer_badge TEXT DEFAULT 'DEL-TP-7429',
+    evidence_notes TEXT,
+    FOREIGN KEY(camera_id) REFERENCES cameras(camera_id)
+);
+
+-- Emergency Green Corridor Clearance Table
+CREATE TABLE IF NOT EXISTS green_corridors (
+    corridor_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    emergency_type TEXT NOT NULL, -- AMBULANCE, FIRE_BRIGADE, ORGAN_TRANSPLANT, VIP_CONVOY
+    vehicle_plate TEXT,
+    origin_cam TEXT NOT NULL,
+    dest_cam TEXT NOT NULL,
+    route_json TEXT NOT NULL,
+    status TEXT DEFAULT 'ACTIVE', -- ACTIVE, COMPLETED, CANCELLED
+    activated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    priority_level TEXT DEFAULT 'CRITICAL_LEVEL_1'
+);
+
+-- Police Control Room (PCR) Patrol Units Table
+CREATE TABLE IF NOT EXISTS pcr_units (
+    unit_id TEXT PRIMARY KEY,
+    call_sign TEXT NOT NULL,
+    officer_in_charge TEXT NOT NULL,
+    current_junction TEXT NOT NULL,
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL,
+    status TEXT DEFAULT 'ON_PATROL', -- ON_PATROL, STANDBY, DISPATCHED_INTERCEPT, BUSY
+    last_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Indices for Fast Querying
 CREATE INDEX IF NOT EXISTS idx_obs_cam_time ON observations(camera_id, timestamp);
 CREATE INDEX IF NOT EXISTS idx_obs_plate ON observations(plate_text);
 CREATE INDEX IF NOT EXISTS idx_journeys_veh ON journeys(global_vehicle_id);
 CREATE INDEX IF NOT EXISTS idx_events_time ON traffic_events(timestamp);
+CREATE INDEX IF NOT EXISTS idx_challans_plate ON echallans(plate_number);
 """
+
