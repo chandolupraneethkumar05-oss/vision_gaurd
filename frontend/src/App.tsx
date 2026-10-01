@@ -10,6 +10,7 @@ import { GroundedAssistant } from './components/GroundedAssistant';
 import { SystemTelemetry } from './components/SystemTelemetry';
 import { AiStudio } from './components/AiStudio';
 import { TrafficPoliceOps } from './components/TrafficPoliceOps';
+import { HeroShowcase } from './components/HeroShowcase';
 import { API_BASE } from './config/api';
 import type { Camera, Observation, Journey, TrafficEvent, WatchlistItem, NetworkAnalytics, SystemHealth } from './types';
 
@@ -132,6 +133,15 @@ export function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Top Opening Page Hero Showcase with Cinematic Live Image & Interactive Launchpad */}
+        <HeroShowcase
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          systemHealth={systemHealth}
+          analytics={analytics}
+          alertCount={pendingAlertCount}
+        />
+
         {activeTab === 'gis' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
